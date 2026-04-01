@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机传感器检测器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: none;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        ul {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .sensor-data {
+            font-family: monospace;
+            font-size: 1.2em;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border-radius: 5px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 手机传感器检测器</h1>
+
+        <!-- 检测部分 -->
+        <div class="section">
+            <h2>🔍 检测传感器</h2>
+            <button id="detectBtn">开始检测</button>
+            <div id="status"></div>
+            <div id="results">
+                <h3>可用传感器列表:</h3>
+                <ul id="sensorList"></ul>
+            </div>
+        </div>
+
+        <!-- 功能演示部分 -->
+        <div class="section">
+            <h2>🎯 传感器功能演示</h2>
+            <p>请选择一个传感器来查看实时数据:</p>
+            <button id="startAccelerometer" disabled>启动加速度计</button>
+            <button id="startGyroscope" disabled>启动陀螺仪</button>
+            <button id="startMagnetometer" disabled>启动磁力计</button>
+            <button id="stopSensors">停止所有传感器</button>
+            
+            <div id="sensorOutput" class="sensor-data" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM 元素引用 ---
+        const detectBtn = document.getElementById('detectBtn');
+        const statusDiv = document.getElementById('status');
+        const sensorList = document.getElementById('sensorList');
+        const startAccelBtn = document.getElementById('startAccelerometer');
+        const startGyroBtn = document.getElementById('startGyroscope');
+        const startMagBtn = document.getElementById('startMagnetometer');
+        const stopSensorsBtn = document.getElementById('stopSensors');
+        const outputDiv = document.getElementById('sensorOutput');
+
+        // --- 传感器对象实例 ---
+        let accelerometer = null;
+        let gyroscope = null;
+        let magnetometer = null;
+
+        // --- 检测函数 ---
+        function showStatus(message, isError = false) {
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'error' : 'success';
+            statusDiv.style.display = 'block';
+        }
+
+        function detectSensors() {
+            const availableSensors = [];
+            const allSensorTypes = [
+                "accelerometer",
+                "linear-acceleration",
+                "gyroscope",
+                "magnetometer",
+                "absolute-orientation",
+                "relative-orientation",
+                "ambient-light",
+                "proximity"
+            ];
+
+            // 检查每个传感器API是否存在
+            for (const type of allSensorTypes) {
+                if (window[type.charAt(0).toUpperCase() + type.slice(1)] !== undefined) {
+                    availableSensors.push(type);
+                }
+            }
+
+            // 清空列表并填充结果
+            sensorList.innerHTML = '';
+            if (availableSensors.length > 0) {
+                availableSensors.forEach(sensor => {
+                    const li = document.createElement('li');
+                    li.textContent = sensor;
+                    sensorList.appendChild(li);
+                });
+                showStatus(`检测完成！发现了 ${availableSensors.length} 个传感器。`, false);
+
+                // 启用相关的演示按钮
+                if (availableSensors.includes("accelerometer")) {
+                    startAccelBtn.disabled = false;
+                }
+                if (availableSensors.includes("gyroscope")) {
+                    startGyroBtn.disabled = false;
+                }
+                if (availableSensors.includes("magnetometer")) {
+                    startMagBtn.disabled = false;
+                }
+            } else {
+                const li = document.createElement('li');
+                li.textContent = '未发现任何标准传感器 API';
+                sensorList.appendChild(li);
+                showStatus('您的设备或浏览器可能不支持 Sensor API 或者权限被拒绝。', true);
+            }
+        }
+
+        // --- 功能演示函数 ---
+
+        // 加速度计
+        function startAccelerometerDemo() {
+            if (!window.Accelerometer) {
+                showStatus("此设备不支持加速度计", true);
+                return;
+            }
+            try {
+                accelerometer = new Accelerometer({ frequency: 60 }); // 每秒更新60次
+                accelerometer.addEventListener("reading", () => {
+                    outputDiv.innerHTML = `
+                        <strong>加速度计 (m/s²):</strong><br>
+                        X轴: ${accelerometer.x.toFixed(2)}<br>
+                        Y轴: ${accelerometer.y.toFixed(2)}<br>
+                        Z轴: ${accelerometer.z.toFixed(2)}
+                    `;
+                    outputDiv.style.display = 'block';
+                });
+                accelerometer.start();
+                showStatus("加速度计已启动", false);
+            } catch (e) {
+                showStatus("无法启动加速度计: " + e.message, true);
+            }
+        }
+
+        // 陀螺仪
+        function startGyroscopeDemo() {
+            if (!window.Gyroscope) {
+                showStatus("此设备不支持陀螺仪", true);
+                return;
+            }
+            try {
+                gyroscope = new Gyroscope({ frequency: 60 });
+                gyroscope.addEventListener("reading", () => {
+                    outputDiv.innerHTML = `
+                        <strong>陀螺仪 (rad/s):</strong><br>
+                        X轴: ${gyroscope.x.toFixed(3)}<br>
+                        Y轴: ${gyroscope.y.toFixed(3)}<br>
+                        Z轴: ${gyroscope.z.toFixed(3)}
+                    `;
+                    outputDiv.style.display = 'block';
+                });
+                gyroscope.start();
+                showStatus("陀螺仪已启动", false);
+            } catch (e) {
+                showStatus("无法启动陀螺仪: " + e.message, true);
+            }
+        }
+
+        // 磁力计
+        function startMagnetometerDemo() {
+            if (!window.Magnetometer) {
+                showStatus("此设备不支持磁力计", true);
+                return;
+            }
+            try {
+                magnetometer = new Magnetometer({ frequency: 60 });
+                magnetometer.addEventListener("reading", () => {
+                    outputDiv.innerHTML = `
+                        <strong>磁力计 (μT):</strong><br>
+                        X轴: ${magnetometer.x.toFixed(2)}<br>
+                        Y轴: ${magnetometer.y.toFixed(2)}<br>
+                        Z轴: ${magnetometer.z.toFixed(2)}
+                    `;
+                    outputDiv.style.display = 'block';
+                });
+                magnetometer.start();
+                showStatus("磁力计已启动", false);
+            } catch (e) {
+                showStatus("无法启动磁力计: " + e.message, true);
+            }
+        }
+
+        // 停止所有传感器
+        function stopAllSensors() {
+            if (accelerometer) {
+                accelerometer.stop();
+                accelerometer = null;
+            }
+            if (gyroscope) {
+                gyroscope.stop();
+                gyroscope = null;
+            }
+            if (magnetometer) {
+                magnetometer.stop();
+                magnetometer = null;
+            }
+            outputDiv.style.display = 'none';
+            showStatus("所有传感器已停止", false);
+        }
+
+        // --- 事件监听 ---
+        detectBtn.addEventListener('click', detectSensors);
+        startAccelBtn.addEventListener('click', startAccelerometerDemo);
+        startGyroBtn.addEventListener('click', startGyroscopeDemo);
+        startMagBtn.addEventListener('click', startMagnetometerDemo);
+        stopSensorsBtn.addEventListener('click', stopAllSensors);
+    </script>
+</body>
+</html>
